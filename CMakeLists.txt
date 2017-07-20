@@ -42,7 +42,7 @@ add_executable(long_range_telem
 add_dependencies(long_range_telem
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
-  rosflight_msgs_generate_cpp
+  rosflight_msgs_generate_msgs_cpp
 )
 target_link_libraries(long_range_telem
   mavrosflight

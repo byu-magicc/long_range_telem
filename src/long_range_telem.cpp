@@ -11,6 +11,9 @@ LRTelem::LRTelem() :
   // Connect to MAVlink
   std::string port = nh_private_.param<std::string>("port", "/dev/ttyUSB0");
   int baud_rate = nh_private_.param<int>("baud_rate", 921600);
+
+  system_id_ = nh_private_.param<int>("system_id", 2);
+  component_id_ = nh_private_.param<int>("component_id", 150);
   ROS_INFO("Connecting to serial port \"%s\", at %d baud", port.c_str(), baud_rate);
   mavlink_comm_ = new mavrosflight::MavlinkSerial(port, baud_rate);
 
@@ -54,12 +57,30 @@ void LRTelem::handle_heartbeat_msg(const mavlink_message_t &msg)
 
 void LRTelem::handle_offboard_command_msg(const mavlink_message_t &msg)
 {
+  mavlink_offboard_control_t control_msg;
+  mavlink_msg_offboard_control_decode(&msg, &control_msg);
+  rosflight_msgs::Command out_msg;
+  out_msg.header.stamp = ros::Time::now();
+  out_msg.ignore = control_msg.ignore;
+  out_msg.mode = control_msg.mode;
+  out_msg.x = control_msg.x;
+  out_msg.y = control_msg.y;
+  out_msg.z = control_msg.z;
+  out_msg.F = control_msg.F;
 
+  if (command_pub_.getTopic().empty())
+  {
+    command_pub_ = nh_.advertise<rosflight_msgs::Command>("command", 1);
+  }
+  command_pub_.publish(out_msg);
 }
 
 void LRTelem::commandCallback(rosflight_msgs::Command::ConstPtr msg)
 {
-
+  mavlink_message_t mavlink_msg;
+  mavlink_msg_offboard_control_pack(system_id_, component_id_, &mavlink_msg,
+                                    msg->mode, msg->ignore, msg->x, msg->y, msg->z, msg->F);
+  mavrosflight_->comm.send_message(mavlink_msg);
 }
 
 }

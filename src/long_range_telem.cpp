@@ -16,7 +16,8 @@ LRTelem::LRTelem() :
 
   system_id_ = nh_private_.param<int>("system_id", 2);
   component_id_ = nh_private_.param<int>("component_id", 150);
-  ROS_INFO("Connecting to serial port \"%s\", at %d baud", port.c_str(), baud_rate);
+  ROS_INFO("[long_range_telemetry %d-%d] Connecting to serial port \"%s\", at %d baud",
+           system_id_, component_id_, port.c_str(), baud_rate);
   mavlink_comm_ = new mavrosflight::MavlinkSerial(port, baud_rate);
 
   try
@@ -39,6 +40,24 @@ LRTelem::~LRTelem()
   delete mavlink_comm_;
 }
 
+void LRTelem::heartbeatTimerCallback(const ros::TimerEvent &e)
+{
+  // send a heartbeat
+  mavlink_message_t msg;
+  mavlink_msg_heartbeat_pack(system_id_, component_id_, &msg, 0, 0, 0, 0, 0);
+  mavrosflight_->comm.send_message(msg);
+
+  // check to make sure we are still connected to the other side
+  ros::Time now = ros::Time::now();
+  if (now - last_heartbeat_received_ > ros::Duration(2.0))
+  {
+    ROS_ERROR("[long_range_telemetry %d-%d] lost connection", system_id_, component_id_);
+  }
+}
+
+//==================================================================
+// Mavlink -> ROS functions
+
 void LRTelem::handle_mavlink_message(const mavlink_message_t &msg)
 {
   switch (msg.msgid)
@@ -51,6 +70,8 @@ void LRTelem::handle_mavlink_message(const mavlink_message_t &msg)
       break;
   }
 }
+
+
 
 void LRTelem::handle_heartbeat_msg(const mavlink_message_t &msg)
 {
@@ -78,26 +99,15 @@ void LRTelem::handle_offboard_command_msg(const mavlink_message_t &msg)
   command_pub_.publish(out_msg);
 }
 
+
+//==================================================================
+// ROS -> Mavlink functions
+
 void LRTelem::commandCallback(rosflight_msgs::Command::ConstPtr msg)
 {
   mavlink_message_t mavlink_msg;
   mavlink_msg_offboard_control_pack(system_id_, component_id_, &mavlink_msg,
                                     msg->mode, msg->ignore, msg->x, msg->y, msg->z, msg->F);
   mavrosflight_->comm.send_message(mavlink_msg);
-}
-
-void LRTelem::heartbeatTimerCallback(const ros::TimerEvent &e)
-{
-  // send a heartbeat
-  mavlink_message_t msg;
-  mavlink_msg_heartbeat_pack(system_id_, component_id_, &msg, 0, 0, 0, 0, 0);
-  mavrosflight_->comm.send_message(msg);
-
-  // check to make sure we are still connected to the other side
-  ros::Time now = ros::Time::now();
-  if (now - last_heartbeat_received_ > ros::Duration(2.0))
-  {
-    ROS_ERROR("[long_range_telemetry - %d,%d]lost connection", system_id_, component_id_);
-  }
 }
 }

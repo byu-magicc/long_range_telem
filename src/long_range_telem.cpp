@@ -10,12 +10,13 @@ LRTelem::LRTelem() :
 
   heartbeat_timer_ = nh_.createTimer(ros::Duration(1.0), &LRTelem::heartbeatTimerCallback, this);
 
-  // Connect to MAVlink
+  // Get Parameters
   std::string port = nh_private_.param<std::string>("port", "/dev/ttyUSB0");
   int baud_rate = nh_private_.param<int>("baud_rate", 921600);
-
   system_id_ = nh_private_.param<int>("system_id", 2);
   component_id_ = nh_private_.param<int>("component_id", 150);
+
+  // Connect to Serial
   ROS_INFO("[long_range_telemetry %d-%d] Connecting to serial port \"%s\", at %d baud",
            system_id_, component_id_, port.c_str(), baud_rate);
   mavlink_comm_ = new mavrosflight::MavlinkSerial(port, baud_rate);
@@ -75,7 +76,7 @@ void LRTelem::handle_mavlink_message(const mavlink_message_t &msg)
 
 void LRTelem::handle_heartbeat_msg(const mavlink_message_t &msg)
 {
-  ROS_INFO_ONCE("Got HEARTBEAT, connected.");
+  ROS_INFO_ONCE("Got HEARTBEAT from %d-%d, connected.", msg.sysid, msg.compid);
   last_heartbeat_received_ = ros::Time::now();
 }
 
